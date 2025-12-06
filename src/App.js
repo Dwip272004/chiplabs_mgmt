@@ -1,45 +1,55 @@
-import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "./context/AuthContext";
-import Login from "./components/auth/Login";
-import Register from "./components/auth/Register";
-import ManagerDashboard from "./pages/ManagerDashboard";
-import EmployeeDashboard from "./pages/EmployeeDashboard";
-import ProtectedRoute from "./routes/ProtectedRoute";
-import AddData from "./components/AddData";
-import DisplayData from "./components/DisplayData";
+// src/App.jsx
+
+import React, { useState, useEffect } from 'react';
+// 1. Ensure you have imported both components
+import LoginPage from './components/LoginPage';
+import Dashboard from './components/Dashboard'; 
+import { supabase } from './supabaseClient'; 
+
 function App() {
-  return (
-    <Router>
-      <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+  const [session, setSession] = useState(null);
+  // Add a loading state to prevent premature rendering
+  const [loading, setLoading] = useState(true); 
 
-          <Route path="/" element={
-            <ProtectedRoute>
-              <ManagerDashboard />
-            </ProtectedRoute>
-          } />
+  useEffect(() => {
+    // Function to handle the initial session check
+    const checkSession = async () => {
+      // 1. Check initial session
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+      setLoading(false); // Once checked, set loading to false
+    };
 
-          {/* Example role-based routes */}
-          <Route path="/manager" element={
-            <ProtectedRoute requiredRole="manager">
-              <ManagerDashboard />
-            </ProtectedRoute>
-          } />
+    checkSession();
 
-          <Route path="/employee" element={
-            <ProtectedRoute requiredRole="employee">
-              <EmployeeDashboard />
-            </ProtectedRoute>
-          } />
+    // 2. Listen for auth changes (login/logout)
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+      }
+    );
+    
+    // Clean up listener
+    return () => {
+      authListener.subscription?.unsubscribe(); // Use optional chaining for safety
+    };
+  }, []);
 
-          <Route path="*" element={<div className="p-8">404 - Not Found</div>} />
-        </Routes>
-      </AuthProvider>
-    </Router>
-  );
+  // --- Render Logic ---
+  
+  // 1. Show a loader while checking the session status
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen bg-gray-50">
+        <p className="text-xl text-indigo-600">Checking authentication...</p>
+        {/* You could add a simple spinning loader here */}
+      </div>
+    );
+  }
+
+  // 2. Show the appropriate component once the session is determined
+  // If session is found, render Dashboard; otherwise, render LoginPage.
+  return session ? <Dashboard session={session} /> : <LoginPage />;
 }
 
 export default App;
